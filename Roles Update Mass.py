@@ -287,7 +287,40 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
     }
     
-    /* Selectbox Styling */
+    /* Toggle Styling */
+    .stToggle > div > div > div > div {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Expander Styling */
+    .stExpander {
+        border: 1px solid #e1e8ed;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .stExpander > div:first-child {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        padding: 12px 20px;
+        border-bottom: 1px solid #e1e8ed;
+    }
+    
+    .stExpander > div:first-child > div > p {
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+    }
+    
+    /* File Count Badge */
+    .file-count-badge {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        color: #667eea;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: 1px solid rgba(102, 126, 234, 0.2);
+    }
     .stSelectbox > div > div {
         background: white;
         border: 2px solid #e1e8ed;
@@ -398,6 +431,14 @@ def create_sheet_specific_template(template_sheets, validation_options):
             col_letter = chr(64 + col_index)
             validation_sheets[sheet_key]["ranges"][col_name] = f"'{safe_name}'!${col_letter}$1:${col_letter}${len(sorted_opts)}"
             col_index += 1
+        
+        # Add Actions validation (Add/Remove) for all sheets
+        actions_data = ["Add", "Remove"]
+        for i, val in enumerate(actions_data, start=1):
+            hidden.cell(row=i, column=col_index, value=val)
+        
+        col_letter = chr(64 + col_index)
+        validation_sheets[sheet_key]["ranges"]["Actions"] = f"'{safe_name}'!${col_letter}$1:${col_letter}$2"
 
     # Add user-facing sheets with data validation
     for sheet_key, template_rows in template_sheets.items():
@@ -453,20 +494,31 @@ uploaded_files = st.file_uploader(
 if uploaded_files:
     st.session_state.uploaded_files = uploaded_files
     
-    # Display uploaded files with modern styling
-    st.markdown("#### 📂 Uploaded Files")
-    for i, file in enumerate(uploaded_files):
-        col1, col2, col3 = st.columns([3, 2, 1])
-        with col1:
-            st.markdown(f"""
-            <div class="file-item">
-                <div class="file-icon">📄</div>
-                <div>
-                    <div style="font-weight: 600; color: #333;">{file.name}</div>
-                    <div style="color: #666; font-size: 0.9rem;">{format_file_size(file.size)}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Add toggle for showing/hiding uploaded files
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        show_files = st.toggle("Show Files", value=True, key="show_uploaded_files")
+    with col2:
+        st.markdown(f'<div class="file-count-badge">{len(uploaded_files)} file(s) uploaded</div>', unsafe_allow_html=True)
+    
+    # Display uploaded files with modern styling (only if toggled on)
+    if show_files:
+        st.markdown("#### 📂 Uploaded Files")
+        
+        # Create an expander for better organization
+        with st.expander("📁 File Details", expanded=True):
+            for i, file in enumerate(uploaded_files):
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.markdown(f"""
+                    <div class="file-item">
+                        <div class="file-icon">📄</div>
+                        <div>
+                            <div style="font-weight: 600; color: #333;">{file.name}</div>
+                            <div style="color: #666; font-size: 0.9rem;">{format_file_size(file.size)}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -495,7 +547,7 @@ if uploaded_files:
                         # Create a unique key for this sheet
                         sheet_key = f"{file.name} - {sheet}"
                         
-                        # Filterable columns
+                        # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
                         for col in ["PLANT", "APP", "NO"]:
                             if col in df.columns:
@@ -516,8 +568,8 @@ if uploaded_files:
                             else:
                                 validation_options[sheet_key][col].update(df[col].dropna().astype(str))
                         
-                        # Build template row
-                        row = {"User_ID": "", "Source_File": file.name, "Source_Sheet": sheet}
+                        # Build template row (without Total, Source_File, Source_Sheet columns, but with Actions column)
+                        row = {"User_ID": "", "Actions": ""}
                         for col in filter_cols:
                             row[col] = ""
                         
@@ -541,7 +593,7 @@ if uploaded_files:
                 )
                 
                 st.success("✅ Template generated successfully! Each sheet has its own dropdown lists based on the source data.")
-                st.info("💡 **Note:** The template contains separate validation for each source sheet, ensuring dropdowns only show values from that specific sheet.")
+                st.info("💡 **Note:** The template contains separate validation for each source sheet, with an 'Actions' column (Add/Remove) and excludes the 'Total', 'Source_File', and 'Source_Sheet' columns. File and sheet information is embedded in the sheet names.")
             else:
                 st.error("❌ Could not generate template. Please check if your Excel files contain valid data.")
     
@@ -580,9 +632,20 @@ if uploaded_files:
                             if pd.isna(row["User_ID"]) or str(row["User_ID"]).strip() == "":
                                 continue
                             
-                            # Find corresponding source file
-                            file_name = row["Source_File"]
-                            sheet_name = row["Source_Sheet"]
+                            # Extract sheet information from sheet name (format: "filename - sheetname")
+                            sheet_parts = sheet.split(" - ")
+                            if len(sheet_parts) >= 2:
+                                file_name = sheet_parts[0]
+                                sheet_name = " - ".join(sheet_parts[1:])  # Handle cases where sheet name contains " - "
+                            else:
+                                # Fallback: try to match with uploaded files
+                                file_name = None
+                                sheet_name = sheet
+                                for f in uploaded_files:
+                                    if f.name.replace(".xlsx", "") in sheet:
+                                        file_name = f.name
+                                        sheet_name = sheet.replace(f.name.replace(".xlsx", ""), "").strip(" -")
+                                        break
                             
                             source_file = None
                             for f in uploaded_files:
@@ -611,6 +674,7 @@ if uploaded_files:
                                     
                                     if selection_made and not filtered.empty:
                                         filtered.insert(0, "User_ID", row["User_ID"])
+                                        filtered.insert(1, "Actions", row.get("Actions", ""))
                                         filtered["Source_File"] = file_name
                                         filtered["Source_Sheet"] = sheet_name
                                         all_filtered.append(filtered)
@@ -624,6 +688,9 @@ if uploaded_files:
                         # Apply business rules
                         consolidated = consolidated[consolidated["Source_File"] != "PLANT ALL.xlsx"]
                         consolidated = consolidated.dropna(axis=1, how="all")
+                        
+                        # Ensure Total column is preserved in final results (if it exists in source data)
+                        # The Total column will be included automatically from the source data
                         
                         st.session_state.consolidated_data = consolidated
                         st.success(f"✅ Successfully processed {len(consolidated)} records for {len(consolidated['User_ID'].unique())} users!")
