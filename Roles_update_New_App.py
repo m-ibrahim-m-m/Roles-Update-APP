@@ -323,13 +323,13 @@ st.markdown("""
     
     /* Action Selectbox Styling - Dark Text */
     .action-selectbox .stSelectbox > div > div > div {
-        color: #000000 !important; /* Black text */
+        color: #000344 !important; /* Black text */
         font-weight: 600;
     }
     
     /* Ensure the dropdown options also have dark text */
     .action-selectbox .stSelectbox [data-testid="stSelectbox"] option {
-        color: #000000 !important;
+        color: #000344!important;
     }
     
     /* Target the selected value in the dropdown */
