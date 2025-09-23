@@ -545,7 +545,7 @@ if uploaded_files:
                             continue
                         
                         # Create a unique key for this sheet, removing .xlsx to save space
-                        sheet_key = f"{file.name.replace('.xlsx', '')} - {sheet}"
+                        sheet_key = f"{file.name.replace('.xlsx', '')}"
                         
                         # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
