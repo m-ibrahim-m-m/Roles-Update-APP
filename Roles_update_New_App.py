@@ -307,6 +307,11 @@ st.markdown("""
         border: 2px solid #e1e8ed;
         border-radius: 12px;
         padding: 12px 16px;
+        color: #007bff !important;
+    }
+    
+    .stTextInput > div > div > input::placeholder {
+        color: #6c757d !important;
     }
     
     /* Multiselect Styling */
@@ -536,6 +541,9 @@ if uploaded_files:
             """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
+# Initialize filters
+filters = {}
 
 # Single User Mode
 if "Single User" in mode and uploaded_files:
@@ -867,6 +875,3 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True
 )
-
-# Initialize filters after user_id check
-filters = {}
