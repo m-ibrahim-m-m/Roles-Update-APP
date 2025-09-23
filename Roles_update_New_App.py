@@ -604,13 +604,20 @@ def create_advanced_filters(df, column_name, sheet_key):
 def clear_session_state():
     """Clear session state while preserving important configurations"""
     keys_to_preserve = ['theme', 'language_preference']
-    current_state = st.session_state.copy()
     
-    for key in list(st.session_state.keys()):
+    # Get current keys safely without using .copy()
+    current_keys = list(st.session_state.keys())
+    items_removed = 0
+    
+    for key in current_keys:
         if key not in keys_to_preserve:
-            del st.session_state[key]
+            try:
+                del st.session_state[key]
+                items_removed += 1
+            except Exception as e:
+                logging.warning(f"Could not remove key {key} from session state: {e}")
     
-    return f"Session cleared. {len(current_state) - len(keys_to_preserve)} items removed."
+    return f"Session cleared. {items_removed} items removed."
 
 def export_configuration(filters, selected_sheets, user_id):
     """Export current configuration for reuse"""
@@ -889,7 +896,10 @@ if "Single User" in mode and uploaded_files:
                         
                         # Create filters specific to this sheet
                         sheet_cols = st.columns(2)
-                        sheet_filter_key = f"sheet_filters_{file.name}_{sheet}"
+                        # Fix the sheet_filter_key - use the actual file name and sheet from sheet_key
+                        file_name = sheet_key.split(' - ')[0]
+                        sheet_name = sheet_key.split(' - ')[1]
+                        sheet_filter_key = f"sheet_filters_{file_name}_{sheet_name}"
                         
                         if sheet_filter_key not in filters:
                             filters[sheet_filter_key] = {}
@@ -938,10 +948,14 @@ if "Single User" in mode and uploaded_files:
             st.markdown("#### ⚙️ Configuration Management")
             export_configuration(filters, selected_sheets, user_id)
             
-            # Reset button
+            # Reset button with improved error handling
             if st.button("🔄 Reset Session"):
-                clear_session_state()
-                st.rerun()
+                try:
+                    result = clear_session_state()
+                    st.success(result)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error resetting session: {e}")
         
         else:
             st.warning("⚠️ Please select at least one sheet to process.")
