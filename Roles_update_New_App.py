@@ -583,92 +583,6 @@ if "Single User" in mode and uploaded_files:
         )
         
         if selected_sheets:
-            st.markdown("#### 🔍 Global Filter Options")
-            st.markdown("*These filters apply to ALL selected sheets (where applicable)*")
-            
-            # Analyze selected sheets to get global filter options
-            global_options = {}
-            
-            for sheet_key in selected_sheets:
-                if sheet_key in all_sheet_data:
-                    df = all_sheet_data[sheet_key]
-                    
-                    # Store sample data for first column
-                    first_col = df.columns[0]
-                    if first_col not in global_options:
-                        global_options[first_col] = set()
-                    global_options[first_col].update(df[first_col].dropna().astype(str).unique())
-                    
-                    # Check for standard columns with special handling for NO
-                    for col in ["PLANT", "APP", "NO"]:
-                        if col in df.columns:
-                            if col not in global_options:
-                                global_options[col] = set()
-                            
-                            # Special handling for NO column
-                            if col == "NO":
-                                # Get unique NO values and handle different formats
-                                no_values = df[col].dropna().unique()
-                                processed_no_values = []
-                                for val in no_values:
-                                    try:
-                                        # Try to convert to numeric for proper sorting
-                                        num_val = float(str(val).strip())
-                                        if num_val.is_integer():
-                                            processed_no_values.append(str(int(num_val)))
-                                        else:
-                                            processed_no_values.append(str(num_val))
-                                    except ValueError:
-                                        processed_no_values.append(str(val).strip())
-                                global_options[col].update(processed_no_values)
-                            else:
-                                global_options[col].update(df[col].dropna().astype(str).unique())
-            
-            # Create global filter UI
-            filters = {}
-            if global_options:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    for i, (col_name, options) in enumerate(list(global_options.items())[:2]):
-                        if options:
-                            # Use smart sorting, especially for NO column
-                            sorted_options = smart_sort_values(list(options), col_name)
-                            
-                            # Special styling for NO column
-                            if col_name.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
-                                label = f"🔢 {col_name} (Global)"
-                                help_text = f"Select one or more {col_name} values - sorted numerically"
-                            else:
-                                label = f"🏷️ {col_name} (Global)"
-                                help_text = f"Apply {col_name} filter to all selected sheets"
-                            
-                            filters[col_name] = st.multiselect(
-                                label,
-                                options=sorted_options,
-                                help=help_text
-                            )
-                
-                with col2:
-                    for i, (col_name, options) in enumerate(list(global_options.items())[2:4]):
-                        if options:
-                            # Use smart sorting
-                            sorted_options = smart_sort_values(list(options), col_name)
-                            
-                            # Special styling for NO column
-                            if col_name.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
-                                label = f"🔢 {col_name} (Global)"
-                                help_text = f"Select one or more {col_name} values - sorted numerically"
-                            else:
-                                label = f"🏷️ {col_name} (Global)"
-                                help_text = f"Apply {col_name} filter to all selected sheets"
-                            
-                            filters[col_name] = st.multiselect(
-                                label,
-                                options=sorted_options,
-                                help=help_text
-                            )
-            
             # Sheet-specific filters
             st.markdown("#### 🎯 Sheet-Specific Filters")
             st.markdown("*Configure individual filters for each selected sheet*")
@@ -694,24 +608,18 @@ if "Single User" in mode and uploaded_files:
                         available_columns = [col for col in df.columns if col not in ['User_ID', 'Source_File', 'Source_Sheet']]
                         
                         for idx, col in enumerate(available_columns[:4]):  # Limit to first 4 columns
+                            if col.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
+                                continue  # Skip filtering for NO column
                             with sheet_cols[idx % 2]:
                                 # Get unique values for this column
                                 unique_values = df[col].dropna().unique().tolist()
                                 
                                 if unique_values:
-                                    # Use smart sorting, especially for NO column
+                                    # Use smart sorting
                                     sorted_values = smart_sort_values(unique_values, col)
                                     
-                                    # Special styling and functionality for NO column
-                                    if col.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
-                                        label = f"🔢 {col}"
-                                        help_text = f"Select multiple {col} values from {sheet_key} (numerically sorted)"
-                                        
-                                        # Show count of available numbers
-                                        st.caption(f"📊 {len(sorted_values)} unique numbers available")
-                                    else:
-                                        label = f"🔹 {col}"
-                                        help_text = f"Filter {sheet_key} by {col}"
+                                    label = f"🔹 {col}"
+                                    help_text = f"Filter {sheet_key} by {col}"
                                     
                                     filters[sheet_filter_key][col] = st.multiselect(
                                         label,
@@ -792,9 +700,9 @@ elif "Mass Upload" in mode and uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Filterable columns
+                        # Filterable columns, excluding NO
                         filter_cols = [df.columns[0]]
-                        for col in ["PLANT", "APP", "NO"]:
+                        for col in ["PLANT", "APP"]:
                             if col in df.columns:
                                 filter_cols.append(col)
                         
@@ -879,8 +787,8 @@ elif "Mass Upload" in mode and uploaded_files:
                                 filtered = df.copy()
                                 selection_made = False
                                 
-                                # Apply filters from template
-                                for col in [df.columns[0], "PLANT", "APP", "NO"]:
+                                # Apply filters from template, excluding NO
+                                for col in [df.columns[0], "PLANT", "APP"]:
                                     if col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
                                         if col == "NO" and "," in str(row[col]):
                                             no_values = [v.strip() for v in str(row[col]).split(",")]
@@ -959,3 +867,6 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True
 )
+
+# Initialize filters after user_id check
+filters = {}
