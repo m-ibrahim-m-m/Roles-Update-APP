@@ -257,6 +257,36 @@ st.markdown("""
         100% { transform: rotate(360deg); }
     }
     
+    /* Button Overrides */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-weight: 600;
+    }
+    
+    .stDownloadButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
+    }
+    
     /* Toggle Styling */
     .stToggle > div > div > div > div {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -291,38 +321,6 @@ st.markdown("""
         font-weight: 600;
         border: 1px solid rgba(102, 126, 234, 0.2);
     }
-    
-    /* Button Overrides */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 12px 24px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-    }
-    
-    .stDownloadButton > button {
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 12px 24px;
-        font-weight: 600;
-    }
-    
-    .stDownloadButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
-    }
-    
-    /* Selectbox Styling */
     .stSelectbox > div > div {
         background: white;
         border: 2px solid #e1e8ed;
@@ -415,11 +413,7 @@ def create_sheet_specific_template(template_sheets, validation_options):
     # First, create all the validation sheets
     for sheet_key, options in validation_options.items():
         # Create a safe name for the validation sheet
-        safe_name = re.sub(r'[\\/*?[\]:]', '', f"Validation_{sheet_key}")
-        # Truncate to Excel's limit
-        if len(safe_name) > 31:
-            safe_name = safe_name[:31]
-        
+        safe_name = re.sub(r'[\\/*?[\]:]', '', f"Validation_{sheet_key}")[:30]
         hidden = wb.create_sheet(safe_name)
         hidden.sheet_state = "hidden"
         validation_sheets[sheet_key] = {"sheet": hidden, "ranges": {}}
@@ -448,19 +442,8 @@ def create_sheet_specific_template(template_sheets, validation_options):
 
     # Add user-facing sheets with data validation
     for sheet_key, template_rows in template_sheets.items():
-        # Create a safe name for the user sheet (handle long names)
-        safe_sheet_name = re.sub(r'[\\/*?[\]:]', '', sheet_key)
-        # Truncate to Excel's 31 character limit for sheet names
-        if len(safe_sheet_name) > 31:
-            # Try to preserve the important part (file name + abbreviated sheet)
-            parts = sheet_key.split(" - ")
-            if len(parts) >= 2:
-                file_part = parts[0].replace('.xlsx', '')[:15]
-                sheet_part = parts[1][:31-len(file_part)-3]  # Leave room for " - "
-                safe_sheet_name = f"{file_part} - {sheet_part}"
-            else:
-                safe_sheet_name = safe_sheet_name[:31]
-        
+        # Create a safe name for the user sheet
+        safe_sheet_name = re.sub(r'[\\/*?[\]:]', '', sheet_key)[:30]
         ws = wb.create_sheet(safe_sheet_name)
         
         headers = list(template_rows[0].keys())
@@ -548,36 +531,6 @@ if uploaded_files:
     st.markdown("#### Step 1: Download Template")
     st.markdown("Generate a template with validation dropdowns based on your uploaded files. Each sheet will have its own dropdown lists.")
     
-    # Add a debug section to show sheet name mapping
-    if st.button("🔍 Debug: Show Sheet Name Mapping", help="Show how template sheet names map to source files"):
-        if uploaded_files:
-            st.markdown("#### 🗂️ Sheet Name Mapping")
-            with st.expander("Sheet Name Details", expanded=True):
-                mapping_data = []
-                for file in uploaded_files:
-                    try:
-                        xls = pd.ExcelFile(file)
-                        for sheet in xls.sheet_names:
-                            template_name = f"{file.name} - {sheet}".strip()
-                            mapping_data.append({
-                                "Template Sheet Name": template_name,
-                                "Source File": file.name,
-                                "Source Sheet": sheet,
-                                "Template Name Length": len(template_name)
-                            })
-                    except Exception as e:
-                        st.error(f"Error reading {file.name}: {str(e)}")
-                
-                if mapping_data:
-                    mapping_df = pd.DataFrame(mapping_data)
-                    st.dataframe(mapping_df, use_container_width=True)
-                    
-                    # Show warning for long names
-                    long_names = mapping_df[mapping_df["Template Name Length"] > 31]
-                    if not long_names.empty:
-                        st.warning("⚠️ Some template sheet names are longer than 31 characters and may be truncated by Excel:")
-                        st.dataframe(long_names[["Template Sheet Name", "Template Name Length"]], use_container_width=True)
-    
     if st.button("📥 Generate & Download Template", type="primary"):
         with st.spinner("Generating template with sheet-specific dropdowns..."):
             template_sheets = {}
@@ -591,8 +544,8 @@ if uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Create a unique key for this sheet (clean up the naming)
-                        sheet_key = f"{file.name} - {sheet}".strip()
+                        # Create a unique key for this sheet
+                        sheet_key = f"{file.name} - {sheet}"
                         
                         # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
@@ -680,23 +633,18 @@ if uploaded_files:
                                 continue
                             
                             # Extract sheet information from sheet name (format: "filename - sheetname")
-                            # Handle long sheet names by cleaning up spaces
                             sheet_parts = sheet.split(" - ")
                             if len(sheet_parts) >= 2:
-                                file_name = sheet_parts[0].strip()
-                                sheet_name = " - ".join(sheet_parts[1:]).strip()  # Handle cases where sheet name contains " - "
+                                file_name = sheet_parts[0]
+                                sheet_name = " - ".join(sheet_parts[1:])  # Handle cases where sheet name contains " - "
                             else:
                                 # Fallback: try to match with uploaded files
                                 file_name = None
-                                sheet_name = sheet.strip()
+                                sheet_name = sheet
                                 for f in uploaded_files:
-                                    file_base_name = f.name.replace(".xlsx", "").strip()
-                                    if file_base_name in sheet:
+                                    if f.name.replace(".xlsx", "") in sheet:
                                         file_name = f.name
-                                        # Remove file name from sheet name and clean up
-                                        sheet_name = sheet.replace(file_base_name, "").strip()
-                                        # Remove leading/trailing dashes and spaces
-                                        sheet_name = sheet_name.strip(" -").strip()
+                                        sheet_name = sheet.replace(f.name.replace(".xlsx", ""), "").strip(" -")
                                         break
                             
                             source_file = None
@@ -707,30 +655,7 @@ if uploaded_files:
                             
                             if source_file:
                                 try:
-                                    # First, check if the sheet exists in the source file
-                                    source_xls = pd.ExcelFile(source_file)
-                                    available_sheets = source_xls.sheet_names
-                                    
-                                    # Try exact match first
-                                    if sheet_name in available_sheets:
-                                        df = pd.read_excel(source_file, sheet_name=sheet_name)
-                                    else:
-                                        # Try fuzzy matching for sheet names
-                                        matching_sheet = None
-                                        for available_sheet in available_sheets:
-                                            # Check if sheet_name is contained in available_sheet or vice versa
-                                            if (sheet_name.lower() in available_sheet.lower() or 
-                                                available_sheet.lower() in sheet_name.lower()):
-                                                matching_sheet = available_sheet
-                                                break
-                                        
-                                        if matching_sheet:
-                                            df = pd.read_excel(source_file, sheet_name=matching_sheet)
-                                            st.warning(f"⚠️ Sheet '{sheet_name}' not found in {file_name}. Using '{matching_sheet}' instead.")
-                                        else:
-                                            st.error(f"❌ Sheet '{sheet_name}' not found in {file_name}. Available sheets: {', '.join(available_sheets)}")
-                                            continue
-                                    
+                                    df = pd.read_excel(source_file, sheet_name=sheet_name)
                                     if df.empty:
                                         continue
                                     
@@ -754,16 +679,7 @@ if uploaded_files:
                                         filtered["Source_Sheet"] = sheet_name
                                         all_filtered.append(filtered)
                                 except Exception as e:
-                                    st.error(f"❌ Error processing {file_name} - {sheet_name}: {str(e)}")
-                                    # Show available sheets for debugging
-                                    try:
-                                        temp_xls = pd.ExcelFile(source_file)
-                                        st.info(f"📋 Available sheets in {file_name}: {', '.join(temp_xls.sheet_names)}")
-                                    except:
-                                        pass
-                                    continue
-                            else:
-                                st.warning(f"⚠️ Source file '{file_name}' not found in uploaded files.")
+                                    st.error(f"Error processing {file_name} - {sheet_name}: {str(e)}")
                         
                         progress_bar.progress((sheet_idx + 1) / total_sheets)
                     
