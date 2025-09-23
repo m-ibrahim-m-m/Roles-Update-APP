@@ -413,7 +413,7 @@ def create_sheet_specific_template(template_sheets, validation_options):
     # First, create all the validation sheets
     for sheet_key, options in validation_options.items():
         # Create a safe name for the validation sheet
-        safe_name = re.sub(r'[\\/*?[\]:]', '', f"Validation_{sheet_key}")[:30]
+        safe_name = re.sub(r'[\\/*?[\]:]', '', f"Validation_{sheet_key}")[:31]
         hidden = wb.create_sheet(safe_name)
         hidden.sheet_state = "hidden"
         validation_sheets[sheet_key] = {"sheet": hidden, "ranges": {}}
@@ -443,7 +443,7 @@ def create_sheet_specific_template(template_sheets, validation_options):
     # Add user-facing sheets with data validation
     for sheet_key, template_rows in template_sheets.items():
         # Create a safe name for the user sheet
-        safe_sheet_name = re.sub(r'[\\/*?[\]:]', '', sheet_key)[:30]
+        safe_sheet_name = re.sub(r'[\\/*?[\]:]', '', sheet_key)[:31]
         ws = wb.create_sheet(safe_sheet_name)
         
         headers = list(template_rows[0].keys())
@@ -544,8 +544,8 @@ if uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Create a unique key for this sheet
-                        sheet_key = f"{file.name} - {sheet}"
+                        # Create a unique key for this sheet, removing .xlsx to save space
+                        sheet_key = f"{file.name.replace('.xlsx', '')} - {sheet}"
                         
                         # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
@@ -635,17 +635,22 @@ if uploaded_files:
                             # Extract sheet information from sheet name (format: "filename - sheetname")
                             sheet_parts = sheet.split(" - ")
                             if len(sheet_parts) >= 2:
-                                file_name = sheet_parts[0]
-                                sheet_name = " - ".join(sheet_parts[1:])  # Handle cases where sheet name contains " - "
+                                file_name = sheet_parts[0] + ".xlsx"  # Restore .xlsx
+                                sheet_name = " - ".join(sheet_parts[1:]).strip()  # Handle cases where sheet name contains " - "
                             else:
                                 # Fallback: try to match with uploaded files
                                 file_name = None
-                                sheet_name = sheet
+                                sheet_name = sheet.strip()
                                 for f in uploaded_files:
-                                    if f.name.replace(".xlsx", "") in sheet:
+                                    short_f = f.name.replace(".xlsx", "")
+                                    if short_f in sheet:
                                         file_name = f.name
-                                        sheet_name = sheet.replace(f.name.replace(".xlsx", ""), "").strip(" -")
+                                        sheet_name = sheet.replace(short_f, "").strip(" -")
                                         break
+                            
+                            # Normalize sheet_name to handle extra spaces
+                            if sheet_name:
+                                sheet_name = re.sub(r'\s+', ' ', sheet_name).strip()
                             
                             source_file = None
                             for f in uploaded_files:
