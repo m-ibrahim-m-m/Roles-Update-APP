@@ -757,4 +757,79 @@ if uploaded_files:
                                     st.error(f"❌ Error processing {file_name} - {sheet_name}: {str(e)}")
                                     # Show available sheets for debugging
                                     try:
-                                        temp_xls = pd.ExcelFile
+                                        temp_xls = pd.ExcelFile(source_file)
+                                        st.info(f"📋 Available sheets in {file_name}: {', '.join(temp_xls.sheet_names)}")
+                                    except:
+                                        pass
+                                    continue
+                            else:
+                                st.warning(f"⚠️ Source file '{file_name}' not found in uploaded files.")
+                        
+                        progress_bar.progress((sheet_idx + 1) / total_sheets)
+                    
+                    if all_filtered:
+                        consolidated = pd.concat(all_filtered, ignore_index=True)
+                        # Apply business rules
+                        consolidated = consolidated[consolidated["Source_File"] != "PLANT ALL.xlsx"]
+                        consolidated = consolidated.dropna(axis=1, how="all")
+                        
+                        # Ensure Total column is preserved in final results (if it exists in source data)
+                        # The Total column will be included automatically from the source data
+                        
+                        st.session_state.consolidated_data = consolidated
+                        st.success(f"✅ Successfully processed {len(consolidated)} records for {len(consolidated['User_ID'].unique())} users!")
+                    else:
+                        st.warning("⚠️ No valid data found in the template file.")
+                
+                except Exception as e:
+                    st.error(f"Error processing mass upload: {str(e)}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Results Section
+if st.session_state.consolidated_data is not None:
+    st.markdown('<div class="results-container">', unsafe_allow_html=True)
+    st.markdown('<div class="table-header">📊 Consolidated Results</div>', unsafe_allow_html=True)
+    
+    df = st.session_state.consolidated_data
+    
+    # Display summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Records", len(df))
+    with col2:
+        st.metric("Unique Users", df['User_ID'].nunique())
+    with col3:
+        st.metric("Source Files", df['Source_File'].nunique())
+    with col4:
+        st.metric("Sheets Processed", df['Source_Sheet'].nunique())
+    
+    # Display the consolidated data
+    st.dataframe(df, use_container_width=True, height=400)
+    
+    # Download consolidated results
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Consolidated")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.download_button(
+            label="📥 Download Consolidated Excel",
+            data=output.getvalue(),
+            file_name="consolidated_roles.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: #444; padding: 20px;'>"
+    "Built with ❤️ using Streamlit | Excel Role Consolidator v2.0"
+    "</div>",
+    unsafe_allow_html=True
+)
