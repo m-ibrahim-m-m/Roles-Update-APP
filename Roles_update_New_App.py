@@ -321,15 +321,20 @@ st.markdown("""
         border-radius: 12px;
     }
     
-    /* Action Selectbox Styling - Dark Blue/Black Text */
-    .action-selectbox > div > div > div > div {
-        color: #00008B !important; /* Dark Blue */
+    /* Action Selectbox Styling - Dark Text */
+    .action-selectbox .stSelectbox > div > div > div {
+        color: #000000 !important; /* Black text */
         font-weight: 600;
     }
     
-    .action-selectbox .stSelectbox > div > div > div {
-        color: #000000 !important; /* Black */
-        font-weight: 600;
+    /* Ensure the dropdown options also have dark text */
+    .action-selectbox .stSelectbox [data-testid="stSelectbox"] option {
+        color: #000000 !important;
+    }
+    
+    /* Target the selected value in the dropdown */
+    .action-selectbox div[data-baseweb="select"] > div:first-child {
+        color: #000000 !important;
     }
     
     /* Hide Streamlit Branding */
@@ -626,11 +631,11 @@ if "Single User" in mode and uploaded_files:
                             filters[sheet_filter_key] = {}
                         
                         # Get unique values for each column in this sheet
-                        available_columns = [col for col in df.columns if col not in ['User_ID', 'Source_File', 'Source_Sheet']]
+                        available_columns = [col for col in df.columns if col not in ['User_ID', 'Source_File', 'Source_Sheet', 'TOTAL']]
                         
-                        for idx, col in enumerate(available_columns[:4]):  # Limit to first 4 columns
-                            if col.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
-                                continue  # Skip filtering for NO column
+                        for idx, col in enumerate(available_columns[:4]):  # Limit to first 4 columns, excluding TOTAL
+                            if col.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM', 'TOTAL']:
+                                continue  # Skip filtering for NO and TOTAL columns
                             with sheet_cols[idx % 2]:
                                 # Get unique values for this column
                                 unique_values = df[col].dropna().unique().tolist()
@@ -650,9 +655,10 @@ if "Single User" in mode and uploaded_files:
                                     )
                         
                         # Add Action selection with custom styling
+                        st.markdown("#### Action Selection")
                         st.markdown('<div class="action-selectbox">', unsafe_allow_html=True)
                         st.selectbox(
-                            "Action",
+                            "Choose action for this sheet:",
                             ["Add", "Remove"],
                             key=f"{sheet_key}_action",
                             help="Select action for this sheet"
@@ -731,10 +737,10 @@ elif "Mass Upload" in mode and uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Filterable columns, excluding NO
+                        # Filterable columns, excluding NO and TOTAL
                         filter_cols = [df.columns[0]]
                         for col in ["PLANT", "APP"]:
-                            if col in df.columns:
+                            if col in df.columns and col != "TOTAL":
                                 filter_cols.append(col)
                         
                         # Collect dropdown options
@@ -822,9 +828,9 @@ elif "Mass Upload" in mode and uploaded_files:
                                 filtered = df.copy()
                                 selection_made = False
                                 
-                                # Apply filters from template, excluding NO and Action
+                                # Apply filters from template, excluding NO, TOTAL and Action
                                 for col in [df.columns[0], "PLANT", "APP"]:
-                                    if col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
+                                    if col != "TOTAL" and col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
                                         filtered = filtered[filtered[col].astype(str) == str(row[col])]
                                         selection_made = True
                                 
@@ -853,14 +859,14 @@ elif "Mass Upload" in mode and uploaded_files:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Results Section - Now showing filter totals
+# Results Section
 if st.session_state.consolidated_data is not None:
     st.markdown('<div class="results-container">', unsafe_allow_html=True)
     st.markdown('<div class="table-header">📊 Consolidated Results</div>', unsafe_allow_html=True)
     
     df = st.session_state.consolidated_data
     
-    # Display summary metrics - This is where filter totals are shown
+    # Display summary metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Records", len(df))
