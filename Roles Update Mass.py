@@ -1,4 +1,5 @@
-import streamlit as st
+if st.button("📥 Generate & Download Template", type="primary"):                            else:
+                                st.warning(f"⚠️ Source file '{file_name}' not found in uploaded files.")import streamlit as st
 import pandas as pd
 from io import BytesIO
 from openpyxl import Workbook
@@ -531,7 +532,35 @@ if uploaded_files:
     st.markdown("#### Step 1: Download Template")
     st.markdown("Generate a template with validation dropdowns based on your uploaded files. Each sheet will have its own dropdown lists.")
     
-    if st.button("📥 Generate & Download Template", type="primary"):
+    # Add a debug section to show sheet name mapping
+    if st.button("🔍 Debug: Show Sheet Name Mapping", help="Show how template sheet names map to source files"):
+        if uploaded_files:
+            st.markdown("#### 🗂️ Sheet Name Mapping")
+            with st.expander("Sheet Name Details", expanded=True):
+                mapping_data = []
+                for file in uploaded_files:
+                    try:
+                        xls = pd.ExcelFile(file)
+                        for sheet in xls.sheet_names:
+                            template_name = f"{file.name} - {sheet}".strip()
+                            mapping_data.append({
+                                "Template Sheet Name": template_name,
+                                "Source File": file.name,
+                                "Source Sheet": sheet,
+                                "Template Name Length": len(template_name)
+                            })
+                    except Exception as e:
+                        st.error(f"Error reading {file.name}: {str(e)}")
+                
+                if mapping_data:
+                    mapping_df = pd.DataFrame(mapping_data)
+                    st.dataframe(mapping_df, use_container_width=True)
+                    
+                    # Show warning for long names
+                    long_names = mapping_df[mapping_df["Template Name Length"] > 31]
+                    if not long_names.empty:
+                        st.warning("⚠️ Some template sheet names are longer than 31 characters and may be truncated by Excel:")
+                        st.dataframe(long_names[["Template Sheet Name", "Template Name Length"]], use_container_width=True)
         with st.spinner("Generating template with sheet-specific dropdowns..."):
             template_sheets = {}
             validation_options = {}
@@ -544,8 +573,8 @@ if uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Create a unique key for this sheet
-                        sheet_key = f"{file.name} - {sheet}"
+                        # Create a unique key for this sheet (clean up the naming)
+                        sheet_key = f"{file.name} - {sheet}".strip()
                         
                         # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
@@ -633,18 +662,23 @@ if uploaded_files:
                                 continue
                             
                             # Extract sheet information from sheet name (format: "filename - sheetname")
+                            # Handle long sheet names by cleaning up spaces
                             sheet_parts = sheet.split(" - ")
                             if len(sheet_parts) >= 2:
-                                file_name = sheet_parts[0]
-                                sheet_name = " - ".join(sheet_parts[1:])  # Handle cases where sheet name contains " - "
+                                file_name = sheet_parts[0].strip()
+                                sheet_name = " - ".join(sheet_parts[1:]).strip()  # Handle cases where sheet name contains " - "
                             else:
                                 # Fallback: try to match with uploaded files
                                 file_name = None
-                                sheet_name = sheet
+                                sheet_name = sheet.strip()
                                 for f in uploaded_files:
-                                    if f.name.replace(".xlsx", "") in sheet:
+                                    file_base_name = f.name.replace(".xlsx", "").strip()
+                                    if file_base_name in sheet:
                                         file_name = f.name
-                                        sheet_name = sheet.replace(f.name.replace(".xlsx", ""), "").strip(" -")
+                                        # Remove file name from sheet name and clean up
+                                        sheet_name = sheet.replace(file_base_name, "").strip()
+                                        # Remove leading/trailing dashes and spaces
+                                        sheet_name = sheet_name.strip(" -").strip()
                                         break
                             
                             source_file = None
@@ -655,7 +689,30 @@ if uploaded_files:
                             
                             if source_file:
                                 try:
-                                    df = pd.read_excel(source_file, sheet_name=sheet_name)
+                                    # First, check if the sheet exists in the source file
+                                    source_xls = pd.ExcelFile(source_file)
+                                    available_sheets = source_xls.sheet_names
+                                    
+                                    # Try exact match first
+                                    if sheet_name in available_sheets:
+                                        df = pd.read_excel(source_file, sheet_name=sheet_name)
+                                    else:
+                                        # Try fuzzy matching for sheet names
+                                        matching_sheet = None
+                                        for available_sheet in available_sheets:
+                                            # Check if sheet_name is contained in available_sheet or vice versa
+                                            if (sheet_name.lower() in available_sheet.lower() or 
+                                                available_sheet.lower() in sheet_name.lower()):
+                                                matching_sheet = available_sheet
+                                                break
+                                        
+                                        if matching_sheet:
+                                            df = pd.read_excel(source_file, sheet_name=matching_sheet)
+                                            st.warning(f"⚠️ Sheet '{sheet_name}' not found in {file_name}. Using '{matching_sheet}' instead.")
+                                        else:
+                                            st.error(f"❌ Sheet '{sheet_name}' not found in {file_name}. Available sheets: {', '.join(available_sheets)}")
+                                            continue
+                                    
                                     if df.empty:
                                         continue
                                     
@@ -679,7 +736,14 @@ if uploaded_files:
                                         filtered["Source_Sheet"] = sheet_name
                                         all_filtered.append(filtered)
                                 except Exception as e:
-                                    st.error(f"Error processing {file_name} - {sheet_name}: {str(e)}")
+                                    st.error(f"❌ Error processing {file_name} - {sheet_name}: {str(e)}")
+                                    # Show available sheets for debugging
+                                    try:
+                                        temp_xls = pd.ExcelFile(source_file)
+                                        st.info(f"📋 Available sheets in {file_name}: {', '.join(temp_xls.sheet_names)}")
+                                    except:
+                                        pass
+                                    continue
                         
                         progress_bar.progress((sheet_idx + 1) / total_sheets)
                     
