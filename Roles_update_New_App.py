@@ -322,18 +322,39 @@ st.markdown("""
     }
     
     /* Action Selectbox Styling - Dark Text */
+    /* Target the selectbox container */
     .action-selectbox .stSelectbox > div > div > div {
-        color: #000344 !important; /* Black text */
+        color: #000000 !important; /* Black text */
         font-weight: 600;
     }
     
-    /* Ensure the dropdown options also have dark text */
-    .action-selectbox .stSelectbox [data-testid="stSelectbox"] option {
-        color: #000344!important;
+    /* Target the dropdown selected value */
+    .action-selectbox [data-baseweb="select"] > div:first-child {
+        color: #000000 !important;
     }
     
-    /* Target the selected value in the dropdown */
-    .action-selectbox div[data-baseweb="select"] > div:first-child {
+    /* Target the dropdown input */
+    .action-selectbox [data-baseweb="select"] input {
+        color: #000000 !important;
+    }
+    
+    /* Target the dropdown value container */
+    .action-selectbox [data-baseweb="select"] [class*="ValueContainer"] {
+        color: #000000 !important;
+    }
+    
+    /* Target the selected value specifically */
+    .action-selectbox [data-baseweb="select"] [class*="singleValue"] {
+        color: #000000 !important;
+    }
+    
+    /* Force all text inside action-selectbox to be dark */
+    .action-selectbox * {
+        color: #000000 !important;
+    }
+    
+    /* Specific targeting for Streamlit selectbox text */
+    div[data-testid="stSelectbox"] > div > div > div {
         color: #000000 !important;
     }
     
