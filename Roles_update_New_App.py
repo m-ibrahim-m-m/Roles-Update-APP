@@ -321,6 +321,17 @@ st.markdown("""
         border-radius: 12px;
     }
     
+    /* Action Selectbox Styling - Dark Blue/Black Text */
+    .action-selectbox > div > div > div > div {
+        color: #00008B !important; /* Dark Blue */
+        font-weight: 600;
+    }
+    
+    .action-selectbox .stSelectbox > div > div > div {
+        color: #000000 !important; /* Black */
+        font-weight: 600;
+    }
+    
     /* Hide Streamlit Branding */
     #MainMenu {visibility: hidden;}
     .stDeployButton {display:none;}
@@ -638,13 +649,15 @@ if "Single User" in mode and uploaded_files:
                                         help=help_text
                                     )
                         
-                        # Add Action selection
+                        # Add Action selection with custom styling
+                        st.markdown('<div class="action-selectbox">', unsafe_allow_html=True)
                         st.selectbox(
                             "Action",
                             ["Add", "Remove"],
                             key=f"{sheet_key}_action",
                             help="Select action for this sheet"
                         )
+                        st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.warning("⚠️ Please select at least one sheet to process.")
         
@@ -840,14 +853,14 @@ elif "Mass Upload" in mode and uploaded_files:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Results Section
+# Results Section - Now showing filter totals
 if st.session_state.consolidated_data is not None:
     st.markdown('<div class="results-container">', unsafe_allow_html=True)
     st.markdown('<div class="table-header">📊 Consolidated Results</div>', unsafe_allow_html=True)
     
     df = st.session_state.consolidated_data
     
-    # Display summary metrics
+    # Display summary metrics - This is where filter totals are shown
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Records", len(df))
