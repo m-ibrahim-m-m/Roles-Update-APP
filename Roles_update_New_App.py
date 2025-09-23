@@ -470,6 +470,8 @@ def process_single_user_files(uploaded_files, user_id, filters, selected_sheets)
                     filtered.insert(0, "User_ID", user_id)
                     filtered["Source_File"] = file.name
                     filtered["Source_Sheet"] = sheet
+                    action = st.session_state.get(f"{sheet_key}_action", "Add")
+                    filtered["Action"] = action
                     all_filtered.append(filtered)
         
         except Exception as e:
@@ -635,6 +637,14 @@ if "Single User" in mode and uploaded_files:
                                         key=f"{sheet_key}_{col}_filter",
                                         help=help_text
                                     )
+                        
+                        # Add Action selection
+                        st.selectbox(
+                            "Action",
+                            ["Add", "Remove"],
+                            key=f"{sheet_key}_action",
+                            help="Select action for this sheet"
+                        )
         else:
             st.warning("⚠️ Please select at least one sheet to process.")
         
@@ -720,10 +730,14 @@ elif "Mass Upload" in mode and uploaded_files:
                                 validation_options[col] = set()
                             validation_options[col].update(df[col].dropna().astype(str).unique())
                         
+                        # Add Action validation
+                        validation_options["Action"] = {"Add", "Remove"}
+                        
                         # Build template row
                         row = {"User_ID": "", "Source_File": file.name, "Source_Sheet": sheet}
                         for col in filter_cols:
                             row[col] = ""
+                        row["Action"] = ""
                         
                         if sheet not in template_sheets:
                             template_sheets[sheet] = []
@@ -795,20 +809,18 @@ elif "Mass Upload" in mode and uploaded_files:
                                 filtered = df.copy()
                                 selection_made = False
                                 
-                                # Apply filters from template, excluding NO
+                                # Apply filters from template, excluding NO and Action
                                 for col in [df.columns[0], "PLANT", "APP"]:
                                     if col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
-                                        if col == "NO" and "," in str(row[col]):
-                                            no_values = [v.strip() for v in str(row[col]).split(",")]
-                                            filtered = filtered[filtered["NO"].astype(str).isin(no_values)]
-                                        else:
-                                            filtered = filtered[filtered[col].astype(str) == str(row[col])]
+                                        filtered = filtered[filtered[col].astype(str) == str(row[col])]
                                         selection_made = True
                                 
                                 if selection_made and not filtered.empty:
                                     filtered.insert(0, "User_ID", row["User_ID"])
                                     filtered["Source_File"] = file_name
                                     filtered["Source_Sheet"] = sheet_name
+                                    if "Action" in row and pd.notna(row["Action"]):
+                                        filtered["Action"] = row["Action"]
                                     all_filtered.append(filtered)
                         
                         progress_bar.progress((sheet_idx + 1) / total_sheets)
