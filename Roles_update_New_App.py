@@ -491,8 +491,12 @@ def create_template_with_validation_separated(template_sheets, validation_option
             if not options:
                 continue
                 
-            # Sort options
-            sorted_opts = sorted(set(options), key=lambda x: str(x))
+            # Sort options - special handling for NO column
+            if col_name.upper() in ['NO', 'MRP NO', 'NUMBER', 'NUM']:
+                # Sort numerically for NO columns
+                sorted_opts = smart_sort_values(options, col_name)
+            else:
+                sorted_opts = sorted(set(options), key=lambda x: str(x))
             
             # Write options to hidden sheet
             for i, val in enumerate(sorted_opts, start=1):
@@ -546,9 +550,12 @@ def create_template_with_validation_separated(template_sheets, validation_option
 
     return wb
 
-def show_data_preview(df, max_rows=5):
-    """Show interactive data preview"""
-    if st.checkbox("Show Detailed Preview", key=hashlib.md5(str(df.columns).encode()).hexdigest()):
+def show_data_preview(df, sheet_key, max_rows=5):
+    """Show interactive data preview with unique key"""
+    # Create unique key using sheet_key and column hash
+    unique_key = f"preview_{hashlib.md5((str(df.columns) + sheet_key).encode()).hexdigest()}"
+    
+    if st.checkbox("Show Detailed Preview", key=unique_key):
         st.dataframe(df.head(max_rows), use_container_width=True)
         
         # Column statistics
@@ -561,14 +568,16 @@ def show_data_preview(df, max_rows=5):
         })
         st.dataframe(col_stats, use_container_width=True)
 
-def create_advanced_filters(df, column_name):
-    """Create advanced filtering options"""
+def create_advanced_filters(df, column_name, sheet_key):
+    """Create advanced filtering options with unique keys"""
     col1, col2, col3 = st.columns(3)
     filtered_df = df.copy()
     
     with col1:
-        if st.checkbox(f"🔍 Text Filter for {column_name}", key=f"text_{column_name}"):
-            search_term = st.text_input(f"Search in {column_name}", key=f"search_{column_name}")
+        unique_key = f"text_{sheet_key}_{column_name}"
+        if st.checkbox(f"🔍 Text Filter for {column_name}", key=unique_key):
+            search_key = f"search_{sheet_key}_{column_name}"
+            search_term = st.text_input(f"Search in {column_name}", key=search_key)
             if search_term:
                 filtered_df = filtered_df[filtered_df[column_name].astype(str).str.contains(search_term, case=False, na=False)]
     
@@ -577,12 +586,13 @@ def create_advanced_filters(df, column_name):
             min_val = float(df[column_name].min())
             max_val = float(df[column_name].max())
             if min_val != max_val:
+                range_key = f"range_{sheet_key}_{column_name}"
                 selected_range = st.slider(
                     f"📏 Range for {column_name}",
                     min_val,
                     max_val,
                     (min_val, max_val),
-                    key=f"range_{column_name}"
+                    key=range_key
                 )
                 filtered_df = filtered_df[
                     (filtered_df[column_name] >= selected_range[0]) & 
@@ -875,11 +885,11 @@ if "Single User" in mode and uploaded_files:
                     with st.expander(f"📊 {sheet_key} ({len(df)} rows)", expanded=False):
                         # Show preview of the sheet
                         st.markdown("**Data Preview:**")
-                        show_data_preview(df)
+                        show_data_preview(df, sheet_key)
                         
                         # Create filters specific to this sheet
                         sheet_cols = st.columns(2)
-                        sheet_filter_key = f"sheet_filters_{sheet_key.split(' - ')[0]}_{sheet_key.split(' - ')[1]}"
+                        sheet_filter_key = f"sheet_filters_{file.name}_{sheet}"
                         
                         if sheet_filter_key not in filters:
                             filters[sheet_filter_key] = {}
@@ -901,20 +911,25 @@ if "Single User" in mode and uploaded_files:
                                     label = f"🔹 {col}"
                                     help_text = f"Filter {sheet_key} by {col}"
                                     
+                                    # Create unique key for each multiselect
+                                    multiselect_key = f"{sheet_key}_{col}_filter_{hashlib.md5((sheet_key + col).encode()).hexdigest()}"
+                                    
                                     filters[sheet_filter_key][col] = st.multiselect(
                                         label,
                                         options=sorted_values,
-                                        key=f"{sheet_key}_{col}_filter",
+                                        key=multiselect_key,
                                         help=help_text
                                     )
                         
                         # Add Action selection with custom styling
                         st.markdown("#### Action Selection")
                         st.markdown('<div class="action-selectbox">', unsafe_allow_html=True)
+                        # Create unique key for action selectbox
+                        action_key = f"{sheet_key}_action_{hashlib.md5(sheet_key.encode()).hexdigest()}"
                         st.selectbox(
                             "Choose action for this sheet:",
                             ["Add", "Remove"],
-                            key=f"{sheet_key}_action",
+                            key=action_key,
                             help="Select action for this sheet"
                         )
                         st.markdown('</div>', unsafe_allow_html=True)
@@ -1007,8 +1022,13 @@ elif "Mass Upload" in mode and uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Filterable columns, excluding NO and TOTAL
+                        # Filterable columns - include NO column for MRP NO sheet
                         filter_cols = [df.columns[0]]
+                        
+                        # Special handling for MRP NO sheet - include NO column
+                        if sheet.upper() in ['MRP_NO', 'MRP NO'] and 'NO' in df.columns:
+                            filter_cols.append('NO')
+                        
                         for col in ["PLANT", "APP"]:
                             if col in df.columns and col != "TOTAL":
                                 filter_cols.append(col)
@@ -1050,7 +1070,7 @@ elif "Mass Upload" in mode and uploaded_files:
                 )
                 
                 st.success("✅ Template generated successfully with separated dropdowns for each sheet!")
-                st.info("💡 **Template Features:**\n- Separate dropdown lists for each sheet\n- Data validation for accurate input\n- Action column with Add/Remove options")
+                st.info("💡 **Template Features:**\n- Separate dropdown lists for each sheet\n- Data validation for accurate input\n- Action column with Add/Remove options\n- NO column included for MRP NO sheet with numeric sorting")
             else:
                 st.error("❌ No valid data found in uploaded files to generate template.")
     
@@ -1106,7 +1126,7 @@ elif "Mass Upload" in mode and uploaded_files:
                                     filtered = df.copy()
                                     selection_made = False
                                     
-                                    # Apply filters from template, excluding NO, TOTAL and Action
+                                    # Apply filters from template, excluding TOTAL and Action
                                     for col in df.columns:
                                         if col not in ['TOTAL', 'Action'] and col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
                                             # Special handling for NO columns
