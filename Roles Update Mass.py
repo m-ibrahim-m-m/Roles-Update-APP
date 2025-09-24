@@ -519,6 +519,17 @@ if uploaded_files:
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+    
+    # Display available sheets for debugging
+    st.markdown("#### 🔍 Available Sheets in Uploaded Files")
+    with st.expander("Sheet Details", expanded=True):
+        for file in uploaded_files:
+            try:
+                xls = pd.ExcelFile(file)
+                sheets = xls.sheet_names
+                st.write(f"**{file.name}**: {', '.join([s.strip() for s in sheets])}")
+            except Exception as e:
+                st.error(f"Error reading sheets from {file.name}: {str(e)}")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -628,23 +639,30 @@ if uploaded_files:
                         if "User_ID" not in df_template.columns:
                             continue
                         
-                        # Use sheet as sheet_name, find which uploaded file has this sheet
+                        # Use sheet as sheet_name, find which uploaded file has this sheet (case-insensitive, normalized spaces)
                         source_file = None
                         file_name = None
-                        sheet_name = re.sub(r'\s+', ' ', sheet).strip()  # Normalize
+                        sheet_name_norm = re.sub(r'[\\/*?[\]:]', '', re.sub(r'\s+', ' ', sheet).strip())[:31].lower()
+                        found = False
                         
                         for f in uploaded_files:
                             try:
                                 file_xls = pd.ExcelFile(f)
-                                if sheet_name in file_xls.sheet_names:
-                                    source_file = f
-                                    file_name = f.name
+                                for orig_sheet in file_xls.sheet_names:
+                                    orig_norm = re.sub(r'[\\/*?[\]:]', '', re.sub(r'\s+', ' ', orig_sheet).strip())[:31].lower()
+                                    if sheet_name_norm == orig_norm:
+                                        source_file = f
+                                        file_name = f.name
+                                        sheet_name = orig_sheet  # Use original casing for reading
+                                        found = True
+                                        break
+                                if found:
                                     break
                             except:
                                 pass
                         
-                        if source_file is None:
-                            st.warning(f"⚠️ Could not find sheet '{sheet_name}' in any uploaded file. Skipping.")
+                        if not found:
+                            st.warning(f"⚠️ Could not find sheet '{sheet}' in any uploaded file. Skipping.")
                             continue
                         
                         for _, row in df_template.iterrows():
