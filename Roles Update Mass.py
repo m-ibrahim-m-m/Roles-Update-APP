@@ -544,8 +544,8 @@ if uploaded_files:
                         if df.empty:
                             continue
                         
-                        # Create a unique key for this sheet, removing .xlsx to save space
-                        sheet_key = f"{file.name.replace('.xlsx', '')}"
+                        # Use only the sheet name as key (assume unique across files)
+                        sheet_key = sheet
                         
                         # Filterable columns (excluding Total column)
                         filter_cols = [df.columns[0]]
@@ -593,7 +593,7 @@ if uploaded_files:
                 )
                 
                 st.success("✅ Template generated successfully! Each sheet has its own dropdown lists based on the source data.")
-                st.info("💡 **Note:** The template contains separate validation for each source sheet, with an 'Actions' column (Add/Remove) and excludes the 'Total', 'Source_File', and 'Source_Sheet' columns. File and sheet information is embedded in the sheet names.")
+                st.info("💡 **Note:** The template contains separate validation for each source sheet, with an 'Actions' column (Add/Remove) and excludes the 'Total', 'Source_File', and 'Source_Sheet' columns. Sheet names match the original source sheets (assume unique sheet names across all uploaded files).")
             else:
                 st.error("❌ Could not generate template. Please check if your Excel files contain valid data.")
     
@@ -628,63 +628,55 @@ if uploaded_files:
                         if "User_ID" not in df_template.columns:
                             continue
                         
+                        # Use sheet as sheet_name, find which uploaded file has this sheet
+                        source_file = None
+                        file_name = None
+                        sheet_name = re.sub(r'\s+', ' ', sheet).strip()  # Normalize
+                        
+                        for f in uploaded_files:
+                            try:
+                                file_xls = pd.ExcelFile(f)
+                                if sheet_name in file_xls.sheet_names:
+                                    source_file = f
+                                    file_name = f.name
+                                    break
+                            except:
+                                pass
+                        
+                        if source_file is None:
+                            st.warning(f"⚠️ Could not find sheet '{sheet_name}' in any uploaded file. Skipping.")
+                            continue
+                        
                         for _, row in df_template.iterrows():
                             if pd.isna(row["User_ID"]) or str(row["User_ID"]).strip() == "":
                                 continue
                             
-                            # Extract sheet information from sheet name (format: "filename - sheetname")
-                            sheet_parts = sheet.split(" - ")
-                            if len(sheet_parts) >= 2:
-                                file_name = sheet_parts[0] + ".xlsx"  # Restore .xlsx
-                                sheet_name = " - ".join(sheet_parts[1:]).strip()  # Handle cases where sheet name contains " - "
-                            else:
-                                # Fallback: try to match with uploaded files
-                                file_name = None
-                                sheet_name = sheet.strip()
-                                for f in uploaded_files:
-                                    short_f = f.name.replace(".xlsx", "")
-                                    if short_f in sheet:
-                                        file_name = f.name
-                                        sheet_name = sheet.replace(short_f, "").strip(" -")
-                                        break
-                            
-                            # Normalize sheet_name to handle extra spaces
-                            if sheet_name:
-                                sheet_name = re.sub(r'\s+', ' ', sheet_name).strip()
-                            
-                            source_file = None
-                            for f in uploaded_files:
-                                if f.name == file_name:
-                                    source_file = f
-                                    break
-                            
-                            if source_file:
-                                try:
-                                    df = pd.read_excel(source_file, sheet_name=sheet_name)
-                                    if df.empty:
-                                        continue
-                                    
-                                    filtered = df.copy()
-                                    selection_made = False
-                                    
-                                    # Apply filters from template
-                                    for col in [df.columns[0], "PLANT", "APP", "NO"]:
-                                        if col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
-                                            if col == "NO" and "," in str(row[col]):
-                                                no_values = [v.strip() for v in str(row[col]).split(",")]
-                                                filtered = filtered[filtered["NO"].astype(str).isin(no_values)]
-                                            else:
-                                                filtered = filtered[filtered[col].astype(str) == str(row[col])]
-                                            selection_made = True
-                                    
-                                    if selection_made and not filtered.empty:
-                                        filtered.insert(0, "User_ID", row["User_ID"])
-                                        filtered.insert(1, "Actions", row.get("Actions", ""))
-                                        filtered["Source_File"] = file_name
-                                        filtered["Source_Sheet"] = sheet_name
-                                        all_filtered.append(filtered)
-                                except Exception as e:
-                                    st.error(f"Error processing {file_name} - {sheet_name}: {str(e)}")
+                            try:
+                                df = pd.read_excel(source_file, sheet_name=sheet_name)
+                                if df.empty:
+                                    continue
+                                
+                                filtered = df.copy()
+                                selection_made = False
+                                
+                                # Apply filters from template
+                                for col in [df.columns[0], "PLANT", "APP", "NO"]:
+                                    if col in row and pd.notna(row[col]) and str(row[col]).strip() != "":
+                                        if col == "NO" and "," in str(row[col]):
+                                            no_values = [v.strip() for v in str(row[col]).split(",")]
+                                            filtered = filtered[filtered["NO"].astype(str).isin(no_values)]
+                                        else:
+                                            filtered = filtered[filtered[col].astype(str) == str(row[col])]
+                                        selection_made = True
+                                
+                                if selection_made and not filtered.empty:
+                                    filtered.insert(0, "User_ID", row["User_ID"])
+                                    filtered.insert(1, "Actions", row.get("Actions", ""))
+                                    filtered["Source_File"] = file_name
+                                    filtered["Source_Sheet"] = sheet_name
+                                    all_filtered.append(filtered)
+                            except Exception as e:
+                                st.error(f"Error processing {file_name} - {sheet_name}: {str(e)}")
                         
                         progress_bar.progress((sheet_idx + 1) / total_sheets)
                     
@@ -701,7 +693,7 @@ if uploaded_files:
                         st.success(f"✅ Successfully processed {len(consolidated)} records for {len(consolidated['User_ID'].unique())} users!")
                     else:
                         st.warning("⚠️ No valid data found in the template file.")
-                
+                    
                 except Exception as e:
                     st.error(f"Error processing mass upload: {str(e)}")
     
