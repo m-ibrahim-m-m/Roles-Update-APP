@@ -1058,7 +1058,7 @@ elif "Mass Upload" in mode and uploaded_files:
                             validation_options[sheet][col].update(df[col].dropna().astype(str).unique())
                         
                         # Build template row
-                        row = {"User_ID": "", "Source_File": file.name, "Source_Sheet": sheet}
+                        row = {"User_ID": ""}
                         for col in filter_cols:
                             row[col] = ""
                         row["Action"] = ""
